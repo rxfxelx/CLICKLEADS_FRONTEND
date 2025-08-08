@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Extrator de Contatos</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>Extrator de Contatos</h1>
+      <p class="muted">Google Local (tbm=lcl) → verificação WhatsApp via UAZAPI</p>
+    </header>
+
+    <section class="card">
+      <form id="form" class="grid">
+        <div class="field">
+          <label>Nicho</label>
+          <input id="nicho" placeholder="médico" value="médico">
+        </div>
+        <div class="field">
+          <label>Local</label>
+          <input id="local" placeholder="Belo Horizonte" value="Belo Horizonte">
+        </div>
+        <div class="field">
+          <label>Quantidade</label>
+          <input id="n" type="number" min="1" max="500" value="30">
+        </div>
+        <button class="btn" id="buscar">Buscar</button>
+      </form>
+      <div id="status" class="status"></div>
+    </section>
+
+    <section id="results" class="card hidden">
+      <div class="actions">
+        <div><span id="count" class="badge">0</span> contatos</div>
+        <button id="csv" class="link">Baixar CSV</button>
+      </div>
+      <div class="table-wrap">
+        <table class="table" id="table">
+          <thead><tr><th>Telefone</th><th>WhatsApp</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const BACKEND = "https://clickleads-backend-production.up.railway.app";
+  </script>
+  <script src="script.js"></script>
+</body>
+</html>
