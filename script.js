@@ -1,3 +1,6 @@
+// URL do backend (Railway)
+const BACKEND = "https://clickleads-backend-production.up.railway.app";
+
 const form = document.getElementById('form');
 const statusEl = document.getElementById('status');
 const results = document.getElementById('results');
