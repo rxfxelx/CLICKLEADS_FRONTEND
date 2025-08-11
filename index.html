@@ -1,54 +1,112 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Smart Leads</title>
-  <link rel="stylesheet" href="styles.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Smart Leads</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="container">
     <header class="header">
-      <h1>Smart Leads</h1>
-     
+        <div class="container">
+            <h1 class="logo">Smart Leads</h1>
+            <button id="statusBtn" class="status-btn" aria-label="Status do servidor">
+                <span class="status-indicator"></span>
+                <span class="status-text">Verificando...</span>
+            </button>
+        </div>
     </header>
 
-    <section class="card">
-      <form id="form" class="grid">
-        <div class="field">
-          <label>Nicho</label>
-          <input id="nicho" placeholder="médico" value="médico">
-        </div>
-        <div class="field">
-          <label>Local</label>
-          <input id="local" placeholder="Belo Horizonte" value="Belo Horizonte">
-        </div>
-        <div class="field">
-          <label>Quantidade</label>
-          <input id="n" type="number" min="1" max="500" value="30">
-        </div>
-        <button class="btn" id="buscar">Buscar</button>
-      </form>
-      <div id="status" class="status"></div>
-    </section>
+    <main class="main">
+        <div class="container">
+            <div class="card form-card">
+                <form id="leadsForm" class="form">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="nicho" class="form-label">Nicho</label>
+                            <input 
+                                type="text" 
+                                id="nicho" 
+                                name="nicho" 
+                                class="form-input" 
+                                placeholder="Ex: médico"
+                                value="médico"
+                                required
+                            >
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="local" class="form-label">Local</label>
+                            <input 
+                                type="text" 
+                                id="local" 
+                                name="local" 
+                                class="form-input" 
+                                placeholder="Ex: Belo Horizonte"
+                                value="Belo Horizonte"
+                                required
+                            >
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="quantidade" class="form-label">Quantidade</label>
+                            <input 
+                                type="number" 
+                                id="quantidade" 
+                                name="quantidade" 
+                                class="form-input" 
+                                min="1" 
+                                max="500" 
+                                value="50"
+                                required
+                            >
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="submit" id="buscarBtn" class="btn btn-primary">
+                                <span class="btn-text">Buscar</span>
+                                <div class="btn-spinner" aria-hidden="true"></div>
+                            </button>
+                            <button type="button" id="cancelarBtn" class="btn btn-secondary" style="display: none;">
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
 
-    <section id="results" class="card hidden">
-      <div class="actions">
-        <div><span id="count" class="badge">0</span> contatos</div>
-        <button id="csv" class="link">Baixar CSV</button>
-      </div>
-      <div class="table-wrap">
-        <table class="table" id="table">
-          <thead><tr><th>Telefone</th><th></th></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-  </div>
+            <div id="progressSection" class="progress-section" style="display: none;">
+                <div class="card">
+                    <div class="progress-info">
+                        <span id="progressText" class="progress-text">Coletados 0 de 0</span>
+                        <button id="downloadBtn" class="btn btn-success" style="display: none;">
+                            Baixar CSV
+                        </button>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div id="progressBar" class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                </div>
+            </div>
 
-  <script>
+            <div id="resultsSection" class="results-section" style="display: none;">
+                <div class="card">
+                    <div class="table-container">
+                        <table class="results-table" role="table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Telefone</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resultsBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
 
-  </script>
-  <script src="script.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
