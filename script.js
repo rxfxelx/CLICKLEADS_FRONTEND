@@ -4,6 +4,8 @@ const BACKEND = "https://clickleads-backend-production.up.railway.app";
 let currentEventSource = null
 let collectedLeads = []
 let targetCount = 0
+let waCount = 0
+let nonWaCount = 0
 
 // Elementos DOM
 const statusBtn = document.getElementById("statusBtn")
@@ -18,6 +20,7 @@ const progressBar = document.getElementById("progressBar")
 const resultsSection = document.getElementById("resultsSection")
 const resultsBody = document.getElementById("resultsBody")
 const downloadBtn = document.getElementById("downloadBtn")
+const exhaustedWarning = document.getElementById("exhaustedWarning")
 
 // Inicialização
 document.addEventListener("DOMContentLoaded", () => {
@@ -65,6 +68,7 @@ async function handleFormSubmit(event) {
   const nicho = formData.get("nicho").trim()
   const local = formData.get("local").trim()
   const quantidade = Number.parseInt(formData.get("quantidade"))
+  const somenteWhatsapp = formData.get("somenteWhatsapp") === "on"
 
   if (!nicho || !local || quantidade < 1 || quantidade > 500) {
     alert("Por favor, preencha todos os campos corretamente.")
@@ -74,20 +78,22 @@ async function handleFormSubmit(event) {
   // Reset estado
   collectedLeads = []
   targetCount = quantidade
+  waCount = 0
+  nonWaCount = 0
 
   // UI de loading
   setLoadingState(true)
   showProgressSection()
   clearResults()
-  updateProgress(0, quantidade)
+  updateProgress(0, quantidade, 0, 0)
 
   try {
     // Tentar SSE primeiro
-    const sseSuccess = await tryServerSentEvents(nicho, local, quantidade)
+    const sseSuccess = await tryServerSentEvents(nicho, local, quantidade, somenteWhatsapp)
 
     if (!sseSuccess) {
       // Fallback para fetch normal
-      await fallbackFetch(nicho, local, quantidade)
+      await fallbackFetch(nicho, local, quantidade, somenteWhatsapp)
     }
   } catch (error) {
     console.error("Search failed:", error)
@@ -97,10 +103,11 @@ async function handleFormSubmit(event) {
 }
 
 // Tentar Server-Sent Events
-function tryServerSentEvents(nicho, local, quantidade) {
+function tryServerSentEvents(nicho, local, quantidade, somenteWhatsapp) {
   return new Promise((resolve) => {
     try {
-      const url = `${BACKEND}/leads/stream?nicho=${encodeURIComponent(nicho)}&local=${encodeURIComponent(local)}&n=${quantidade}`
+      const verify = somenteWhatsapp ? 1 : 0
+      const url = `${BACKEND}/leads/stream?nicho=${encodeURIComponent(nicho)}&local=${encodeURIComponent(local)}&n=${quantidade}&verify=${verify}`
       currentEventSource = new EventSource(url)
 
       let hasStarted = false
@@ -117,24 +124,50 @@ function tryServerSentEvents(nicho, local, quantidade) {
         console.log("SSE started:", event.data)
       })
 
+      currentEventSource.addEventListener("progress", (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          waCount = data.wa_count || 0
+          nonWaCount = data.non_wa_count || 0
+          updateProgress(data.searched || 0, targetCount, waCount, nonWaCount)
+        } catch (error) {
+          console.error("Error parsing SSE progress:", error)
+        }
+      })
+
       currentEventSource.addEventListener("item", (event) => {
         try {
           const data = JSON.parse(event.data)
-          addLeadToTable(data.phone)
-          collectedLeads.push({ phone: data.phone })
-          updateProgress(data.count, targetCount)
+          if (!somenteWhatsapp || data.has_whatsapp) {
+            addLeadToTable(data.phone)
+            collectedLeads.push({ phone: data.phone })
+          }
         } catch (error) {
           console.error("Error parsing SSE item:", error)
         }
       })
 
       currentEventSource.addEventListener("done", (event) => {
-        console.log("SSE completed:", event.data)
-        currentEventSource.close()
-        currentEventSource = null
-        setLoadingState(false)
-        showDownloadButton()
-        resolve(true)
+        try {
+          const data = JSON.parse(event.data)
+          console.log("SSE completed:", event.data)
+
+          if (data.exhausted && collectedLeads.length < targetCount) {
+            showExhaustedWarning()
+          }
+
+          currentEventSource.close()
+          currentEventSource = null
+          setLoadingState(false)
+          showDownloadButton()
+          resolve(true)
+        } catch (error) {
+          console.error("Error parsing SSE done:", error)
+          currentEventSource.close()
+          currentEventSource = null
+          setLoadingState(false)
+          resolve(true)
+        }
       })
 
       currentEventSource.onerror = (error) => {
@@ -157,9 +190,10 @@ function tryServerSentEvents(nicho, local, quantidade) {
 }
 
 // Fallback para fetch normal
-async function fallbackFetch(nicho, local, quantidade) {
+async function fallbackFetch(nicho, local, quantidade, somenteWhatsapp) {
   try {
-    const url = `${BACKEND}/leads?nicho=${encodeURIComponent(nicho)}&local=${encodeURIComponent(local)}&n=${quantidade}`
+    const verify = somenteWhatsapp ? 1 : 0
+    const url = `${BACKEND}/leads?nicho=${encodeURIComponent(nicho)}&local=${encodeURIComponent(local)}&n=${quantidade}&verify=${verify}`
     const response = await fetch(url)
 
     if (!response.ok) {
@@ -168,19 +202,28 @@ async function fallbackFetch(nicho, local, quantidade) {
 
     const data = await response.json()
 
+    waCount = data.wa_count || 0
+    nonWaCount = data.non_wa_count || 0
+
     // Simular progresso para melhor UX
     if (data.items && Array.isArray(data.items)) {
       for (let i = 0; i < data.items.length; i++) {
         const item = data.items[i]
-        addLeadToTable(item.phone)
-        collectedLeads.push({ phone: item.phone })
-        updateProgress(i + 1, data.count || data.items.length)
+        if (!somenteWhatsapp || item.has_whatsapp) {
+          addLeadToTable(item.phone)
+          collectedLeads.push({ phone: item.phone })
+        }
+        updateProgress(data.searched || data.items.length, targetCount, waCount, nonWaCount)
 
         // Pequeno delay para simular streaming
         if (i < data.items.length - 1) {
           await new Promise((resolve) => setTimeout(resolve, 50))
         }
       }
+    }
+
+    if (data.exhausted && collectedLeads.length < targetCount) {
+      showExhaustedWarning()
     }
 
     setLoadingState(false)
@@ -208,6 +251,7 @@ function setLoadingState(loading) {
     buscarBtn.classList.add("loading")
     buscarBtn.disabled = true
     cancelarBtn.style.display = "inline-flex"
+    exhaustedWarning.style.display = "none"
   } else {
     buscarBtn.classList.remove("loading")
     buscarBtn.disabled = false
@@ -225,19 +269,23 @@ function showProgressSection() {
 function clearResults() {
   resultsBody.innerHTML = ""
   downloadBtn.style.display = "none"
+  exhaustedWarning.style.display = "none"
 }
 
-// Atualizar progresso
-function updateProgress(current, total) {
+function updateProgress(current, total, wa, nonWa) {
   const percentage = total > 0 ? Math.round((current / total) * 100) : 0
   progressBar.style.width = `${percentage}%`
   progressBar.setAttribute("aria-valuenow", percentage)
-  updateProgressText(`Coletados ${current} de ${total}`)
+  updateProgressText(`Coletados ${current} de ${total} (WA: ${wa} | Não WA: ${nonWa})`)
 }
 
 // Atualizar texto do progresso
 function updateProgressText(text) {
   progressText.textContent = text
+}
+
+function showExhaustedWarning() {
+  exhaustedWarning.style.display = "flex"
 }
 
 // Adicionar lead à tabela
@@ -257,7 +305,6 @@ function showDownloadButton() {
   }
 }
 
-// Download CSV
 function downloadCSV() {
   if (collectedLeads.length === 0) {
     alert("Nenhum lead para baixar.")
@@ -268,6 +315,7 @@ function downloadCSV() {
     // Criar conteúdo CSV com BOM para compatibilidade com Excel
     let csvContent = "\ufeffphone\n" // BOM + cabeçalho
 
+    // Only export WhatsApp numbers (which are already filtered in collectedLeads)
     collectedLeads.forEach((lead) => {
       csvContent += `${lead.phone}\n`
     })
