@@ -176,7 +176,7 @@ body {
 
 /* >>> AUMENTAR LOGO PRINCIPAL (imagem dentro da seção) <<< */
 .company-logo-img {
-  height: 110px;              /* antes 72px no inline; agora maior */
+  height: 210px;              /* antes 72px no inline; agora maior */
   object-fit: contain;
   display: block;
   margin: 0 auto;
