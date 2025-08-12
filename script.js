@@ -6,6 +6,8 @@ let collectedLeads = [];
 let targetCount = 0;
 let waCount = 0;
 let nonWaCount = 0;
+// >>> novo: lembrar se o modo é “Somente WhatsApp”
+let lastSomenteWhatsapp = false;
 
 // Elementos DOM
 const statusBtn = document.getElementById("statusBtn");
@@ -66,6 +68,8 @@ async function handleFormSubmit(event) {
   const local = (formData.get("local") || "").toString().trim();
   const quantidade = Number.parseInt(formData.get("quantidade"));
   const somenteWhatsapp = formData.get("somenteWhatsapp") === "on";
+  // >>> novo: guardar para uso nos updates
+  lastSomenteWhatsapp = somenteWhatsapp;
 
   if (!nicho || !local || Number.isNaN(quantidade) || quantidade < 1 || quantidade > 500) {
     alert("Por favor, preencha todos os campos corretamente.");
@@ -127,7 +131,10 @@ function tryServerSentEvents(nicho, local, quantidade, somenteWhatsapp) {
           const data = JSON.parse(event.data);
           waCount = data.wa_count || 0;
           nonWaCount = data.non_wa_count || 0;
-          updateProgress(data.searched || 0, targetCount, waCount, nonWaCount);
+
+          // >>> alterado: se "Somente WhatsApp", a barra mostra progresso por WA
+          const currentForBar = lastSomenteWhatsapp ? waCount : (data.searched || 0);
+          updateProgress(currentForBar, targetCount, waCount, nonWaCount);
         } catch (error) {
           console.error("Error parsing SSE progress:", error);
         }
@@ -150,6 +157,10 @@ function tryServerSentEvents(nicho, local, quantidade, somenteWhatsapp) {
         try {
           const data = JSON.parse(event.data);
           console.log("SSE completed:", data);
+
+          // >>> ajusta barra final com base no modo
+          const currentForBar = lastSomenteWhatsapp ? (data.wa_count || waCount) : (data.searched || 0);
+          updateProgress(currentForBar, targetCount, data.wa_count || waCount, data.non_wa_count || nonWaCount);
 
           if (data.exhausted && collectedLeads.length < targetCount) {
             showExhaustedWarning();
@@ -212,7 +223,13 @@ async function fallbackFetch(nicho, local, quantidade, somenteWhatsapp) {
           addLeadToTable(item.phone);
           collectedLeads.push({ phone: item.phone });
         }
-        updateProgress(data.searched || data.items.length, targetCount, waCount, nonWaCount);
+
+        // >>> alterado: se “Somente WhatsApp”, a barra usa waCount; senão searched
+        const currentForBar = lastSomenteWhatsapp
+          ? (waCount || 0)
+          : (data.searched || data.items.length);
+
+        updateProgress(currentForBar, targetCount, waCount, nonWaCount);
 
         // Pequeno delay para simular streaming
         if (i < data.items.length - 1) {
@@ -275,13 +292,21 @@ function clearResults() {
   if (exhaustedWarning) exhaustedWarning.style.display = "none";
 }
 
+// >>> alterado: se lastSomenteWhatsapp, a barra e o texto focam em WA
 function updateProgress(current, total, wa, nonWa) {
-  const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
+  const currentValue = lastSomenteWhatsapp ? wa : current;
+  const percentage = total > 0 ? Math.round((currentValue / total) * 100) : 0;
+
   if (progressBar) {
     progressBar.style.width = `${percentage}%`;
     progressBar.setAttribute("aria-valuenow", String(percentage));
   }
-  updateProgressText(`Coletados ${current} de ${total} (WA: ${wa} | Não WA: ${nonWa})`);
+
+  if (lastSomenteWhatsapp) {
+    updateProgressText(`WhatsApp ${wa} de ${total}`);
+  } else {
+    updateProgressText(`Coletados ${current} de ${total} (WA: ${wa} | Não WA: ${nonWa})`);
+  }
 }
 
 // Atualizar texto do progresso
