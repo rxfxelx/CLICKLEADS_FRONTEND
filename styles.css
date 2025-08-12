@@ -14,10 +14,13 @@
   --text-primary: #e5e7eb;
   --text-secondary: #cbd5e1;
   --text-muted: #64748b;
-  --accent-primary: #8b5cf6;
-  --accent-secondary: #7c3aed;
-  --accent-light: #a78bfa;
-  --accent-hover: #6d28d9;
+
+  /* >>> TROCA PARA AZUL #00d7cf <<< */
+  --accent-primary: #00d7cf;
+  --accent-secondary: #00d7cf;
+  --accent-light: #00d7cf;
+  --accent-hover: #00d7cf;
+
   --border-color: #334155;
   --border-hover: #475569;
   --success: #059669;
@@ -148,7 +151,8 @@ body {
 
 .company-logo-placeholder:hover {
   border-color: var(--accent-primary);
-  background: rgba(139, 92, 246, 0.05);
+  /* era rgba(139, 92, 246, 0.05) → agora no tom azul */
+  background: rgba(0, 215, 207, 0.05);
 }
 
 .logo-icon {
@@ -168,6 +172,14 @@ body {
 .logo-placeholder-text p {
   color: var(--text-secondary);
   font-size: 0.95rem;
+}
+
+/* >>> AUMENTAR LOGO PRINCIPAL (imagem dentro da seção) <<< */
+.company-logo-img {
+  height: 110px;              /* antes 72px no inline; agora maior */
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
 }
 
 /* Enhanced form section with better structure and professional styling */
@@ -265,7 +277,8 @@ body {
   outline: none;
   border-color: var(--accent-primary);
   background: var(--bg-secondary);
-  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
+  /* era rgba(139, 92, 246, 0.1) → agora no tom azul */
+  box-shadow: 0 0 0 4px rgba(0, 215, 207, 0.10);
   transform: translateY(-1px);
 }
 
@@ -593,6 +606,11 @@ body {
     flex-direction: column;
     text-align: center;
     gap: 0.75rem;
+  }
+
+  /* Logo maior em mobile também */
+  .company-logo-img {
+    height: 90px;
   }
 }
 
