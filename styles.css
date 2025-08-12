@@ -637,3 +637,26 @@ body {
     font-size: 0.875rem;
   }
 }
+/* === Compactar espaços da área da logo e proximidades === */
+.header { padding: 0.75rem 0; }                   /* antes: 1.25rem 0 */
+.main { padding: 1.5rem 0; }                      /* antes: 3rem 0 */
+
+.logo-section {
+  margin-bottom: 1.25rem;                         /* antes: 4rem */
+  padding: 0.75rem 0;                             /* antes: 3rem 0 */
+}
+
+.company-logo-container { gap: 0; }               /* garante sem gap extra */
+.company-logo-img { margin-bottom: 0.5rem; }      /* aproxima do formulário */
+
+.form-section { margin-bottom: 2rem; }            /* antes: 3rem */
+.form-header { margin-bottom: 1rem; padding-bottom: 0.75rem; }
+.form-container { gap: 1rem; }                    /* antes: 2rem */
+
+/* Mobile ainda mais compacto (opcional) */
+@media (max-width: 768px){
+  .main { padding: 1.25rem 0; }
+  .logo-section { margin-bottom: 1rem; padding: 0.5rem 0; }
+  .form-container { gap: 0.75rem; }
+}
+
