@@ -6,23 +6,25 @@
   <title>Smart Leads</title>
   <link rel="stylesheet" href="styles.css" />
   <style>
-    /* Ajustes simples para a logo */
-    .logo-img{height:32px;object-fit:contain;display:block}
+    /* Só para a logo grande da seção */
     .company-logo-img{height:72px;object-fit:contain;display:block;margin:0 auto}
   </style>
 </head>
 <body>
   <header class="header">
     <div class="container">
-      <!-- TROCA: título por imagem da logo -->
-      <img src="smartleadslogo.png" alt="Smart Leads" class="logo-img" />
+      <!-- Mantém o título original no cabeçalho -->
+      <h1 class="logo">Smart Leads</h1>
+      <button id="statusBtn" class="status-btn" aria-label="Status do servidor">
+        <span class="status-indicator"></span>
+        <span class="status-text">Verificando...</span>
       </button>
     </div>
   </header>
 
   <main class="main">
     <div class="container">
-      <!-- TROCA: placeholder por imagem da logo grande -->
+      <!-- Logo grande na página -->
       <div class="logo-section">
         <div class="company-logo-container">
           <img src="smartleadslogo.png" alt="Smart Leads" class="company-logo-img" />
