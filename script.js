@@ -1,4 +1,4 @@
-const BACKEND = "https://web-production-4e6c9.up.railway.app";
+ const BACKEND = "https://clickleads.up.railway.app";
 
 // Estado da aplicação
 let currentEventSource = null;
