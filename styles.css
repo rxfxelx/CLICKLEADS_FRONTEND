@@ -660,3 +660,79 @@ body {
   .form-container { gap: 0.75rem; }
 }
 
+/* ======== [NOVO] Modal de Login ======== */
+#loginModal{
+  position: fixed;
+  inset: 0;
+  display: none;              /* abre via JS: display:flex */
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.6);
+  z-index: 9999;
+}
+
+.login-card{
+  width: 360px;
+  max-width: 92vw;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  color: var(--text-primary);
+  box-shadow: var(--shadow-lg);
+}
+
+.login-card h3{ margin: 0 0 12px; font-weight: 600; }
+.login-card p.desc{ margin: 0 0 16px; color: var(--text-secondary); font-size: 13px; }
+
+.login-logo{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.login-logo img{ height: 28px; }
+
+.login-card input{
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  margin: 6px 0 12px;
+  transition: var(--transition);
+}
+.login-card input:focus{
+  outline: none;
+  border-color: var(--accent-primary);
+  background: var(--bg-secondary);
+  box-shadow: 0 0 0 4px rgba(0, 215, 207, 0.10);
+}
+
+.login-card button{
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent-primary);
+  color: #001018;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.login-card button:hover{
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.login-card .msg{
+  min-height: 18px;
+  font-size: 12px;
+  color: #93c5fd;
+  margin-top: 6px;
+}
+
+@media (max-width: 440px){
+  .login-card{ padding: 20px; }
+}
