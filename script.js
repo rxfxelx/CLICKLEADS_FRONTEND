@@ -1,4 +1,5 @@
- const BACKEND = "https://clickleads.up.railway.app";
+// Usa o BACKEND definido no HTML ou cai no padrão
+const BACKEND = (window.BACKEND || "https://clickleads.up.railway.app");
 
 // Estado da aplicação
 let currentEventSource = null;
@@ -6,7 +7,7 @@ let collectedLeads = [];
 let targetCount = 0;
 let waCount = 0;
 let nonWaCount = 0;
-// >>> novo: lembrar se o modo é “Somente WhatsApp”
+// lembrar se o modo é “Somente WhatsApp”
 let lastSomenteWhatsapp = false;
 
 // Elementos DOM
@@ -40,7 +41,7 @@ function setupEventListeners() {
 
 // Verificar status do servidor
 async function checkServerStatus() {
-  if (!statusText || !statusIndicator) return; // sem botão no HTML
+  if (!statusText || !statusIndicator) return;
   try {
     statusText.textContent = "Verificando...";
     statusIndicator.className = "status-indicator";
@@ -59,16 +60,26 @@ async function checkServerStatus() {
   }
 }
 
+// Garantir login antes de buscar
+function ensureLoggedIn() {
+  if (!window.AUTH || !window.AUTH.access) {
+    if (typeof showLogin === "function") showLogin();
+    alert("Faça login para usar o SmartLeads.");
+    return false;
+  }
+  return true;
+}
+
 // Manipular envio do formulário
 async function handleFormSubmit(event) {
   event.preventDefault();
+  if (!ensureLoggedIn()) return;
 
   const formData = new FormData(leadsForm);
   const nicho = (formData.get("nicho") || "").toString().trim();
   const local = (formData.get("local") || "").toString().trim();
   const quantidade = Number.parseInt(formData.get("quantidade"));
   const somenteWhatsapp = formData.get("somenteWhatsapp") === "on";
-  // >>> novo: guardar para uso nos updates
   lastSomenteWhatsapp = somenteWhatsapp;
 
   if (!nicho || !local || Number.isNaN(quantidade) || quantidade < 1 || quantidade > 500) {
@@ -82,7 +93,7 @@ async function handleFormSubmit(event) {
   waCount = 0;
   nonWaCount = 0;
 
-  // UI de loading
+  // UI
   setLoadingState(true);
   showProgressSection();
   clearResults();
@@ -103,12 +114,21 @@ async function handleFormSubmit(event) {
   }
 }
 
-// Tentar Server-Sent Events
+// Tentar Server-Sent Events (SSE com autenticação via query)
 function tryServerSentEvents(nicho, local, quantidade, somenteWhatsapp) {
   return new Promise((resolve) => {
     try {
       const verify = somenteWhatsapp ? 1 : 0;
-      const url = `${BACKEND}/leads/stream?nicho=${encodeURIComponent(nicho)}&local=${encodeURIComponent(local)}&n=${quantidade}&verify=${verify}`;
+      const url =
+        `${BACKEND}/leads/stream?` +
+        `nicho=${encodeURIComponent(nicho)}` +
+        `&local=${encodeURIComponent(local)}` +
+        `&n=${quantidade}` +
+        `&verify=${verify}` +
+        `&access=${encodeURIComponent(window.AUTH?.access || "")}` +
+        `&sid=${encodeURIComponent(window.AUTH?.sid || "")}` +
+        `&device=${encodeURIComponent(getDeviceId())}`;
+
       currentEventSource = new EventSource(url);
 
       let hasStarted = false;
@@ -131,8 +151,6 @@ function tryServerSentEvents(nicho, local, quantidade, somenteWhatsapp) {
           const data = JSON.parse(event.data);
           waCount = data.wa_count || 0;
           nonWaCount = data.non_wa_count || 0;
-
-          // >>> alterado: se "Somente WhatsApp", a barra mostra progresso por WA
           const currentForBar = lastSomenteWhatsapp ? waCount : (data.searched || 0);
           updateProgress(currentForBar, targetCount, waCount, nonWaCount);
         } catch (error) {
@@ -143,7 +161,6 @@ function tryServerSentEvents(nicho, local, quantidade, somenteWhatsapp) {
       currentEventSource.addEventListener("item", (event) => {
         try {
           const data = JSON.parse(event.data);
-          // Quando verify=1 no backend, só vem has_whatsapp = true
           if (!somenteWhatsapp || data.has_whatsapp) {
             addLeadToTable(data.phone);
             collectedLeads.push({ phone: data.phone });
@@ -156,9 +173,6 @@ function tryServerSentEvents(nicho, local, quantidade, somenteWhatsapp) {
       currentEventSource.addEventListener("done", (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log("SSE completed:", data);
-
-          // >>> ajusta barra final com base no modo
           const currentForBar = lastSomenteWhatsapp ? (data.wa_count || waCount) : (data.searched || 0);
           updateProgress(currentForBar, targetCount, data.wa_count || waCount, data.non_wa_count || nonWaCount);
 
@@ -180,10 +194,20 @@ function tryServerSentEvents(nicho, local, quantidade, somenteWhatsapp) {
         }
       });
 
-      currentEventSource.onerror = (error) => {
+      currentEventSource.onerror = async (error) => {
         console.error("SSE error:", error);
         try { currentEventSource.close(); } catch {}
         currentEventSource = null;
+
+        // se for 401/423 vindo em SSE, tenta refresh e refaz uma vez
+        if (!hasStarted && window.tryRefresh) {
+          const ok = await tryRefresh();
+          if (ok) {
+            resolve(await tryServerSentEvents(nicho, local, quantidade, somenteWhatsapp));
+            return;
+          }
+        }
+
         if (!hasStarted) {
           clearTimeout(timeout);
           resolve(false); // Fallback
@@ -199,14 +223,16 @@ function tryServerSentEvents(nicho, local, quantidade, somenteWhatsapp) {
   });
 }
 
-// Fallback para fetch normal
+// Fallback para fetch normal (usa apiFetch com Authorization + X-Device-ID)
 async function fallbackFetch(nicho, local, quantidade, somenteWhatsapp) {
   try {
     const verify = somenteWhatsapp ? 1 : 0;
     const url = `${BACKEND}/leads?nicho=${encodeURIComponent(nicho)}&local=${encodeURIComponent(local)}&n=${quantidade}&verify=${verify}`;
-    const response = await fetch(url);
+    const response = await apiFetch(url);
 
     if (!response.ok) {
+      // se token expirou e refresh falhar, pede login
+      if (response.status === 401 && typeof showLogin === "function") showLogin();
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
@@ -215,7 +241,6 @@ async function fallbackFetch(nicho, local, quantidade, somenteWhatsapp) {
     waCount = data.wa_count || 0;
     nonWaCount = data.non_wa_count || 0;
 
-    // Simular progresso para melhor UX
     if (data.items && Array.isArray(data.items)) {
       for (let i = 0; i < data.items.length; i++) {
         const item = data.items[i];
@@ -224,14 +249,12 @@ async function fallbackFetch(nicho, local, quantidade, somenteWhatsapp) {
           collectedLeads.push({ phone: item.phone });
         }
 
-        // >>> alterado: se “Somente WhatsApp”, a barra usa waCount; senão searched
         const currentForBar = lastSomenteWhatsapp
           ? (waCount || 0)
           : (data.searched || data.items.length);
 
         updateProgress(currentForBar, targetCount, waCount, nonWaCount);
 
-        // Pequeno delay para simular streaming
         if (i < data.items.length - 1) {
           await new Promise((resolve) => setTimeout(resolve, 50));
         }
@@ -256,7 +279,6 @@ function cancelSearch() {
     try { currentEventSource.close(); } catch {}
     currentEventSource = null;
   }
-
   setLoadingState(false);
   updateProgressText("Cancelado");
 }
@@ -292,7 +314,7 @@ function clearResults() {
   if (exhaustedWarning) exhaustedWarning.style.display = "none";
 }
 
-// >>> alterado: se lastSomenteWhatsapp, a barra e o texto focam em WA
+// Progresso
 function updateProgress(current, total, wa, nonWa) {
   const currentValue = lastSomenteWhatsapp ? wa : current;
   const percentage = total > 0 ? Math.round((currentValue / total) * 100) : 0;
@@ -324,8 +346,6 @@ function addLeadToTable(phone) {
   const row = document.createElement("tr");
   row.innerHTML = `<td>${escapeHtml(phone)}</td>`;
   resultsBody.appendChild(row);
-
-  // Scroll para o final da tabela
   row.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
@@ -341,17 +361,12 @@ function downloadCSV() {
     alert("Nenhum lead para baixar.");
     return;
   }
-
   try {
-    // Criar conteúdo CSV com BOM para compatibilidade com Excel
-    let csvContent = "\ufeffphone\n"; // BOM + cabeçalho
-
-    // Only export WhatsApp numbers (já filtrados quando 'Somente WhatsApp' estiver marcado)
+    let csvContent = "\ufeffphone\n";
     collectedLeads.forEach((lead) => {
       csvContent += `${lead.phone}\n`;
     });
 
-    // Criar e baixar arquivo
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
 
@@ -378,7 +393,7 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// Utilitário para timeout em fetch (não usado, mas mantido)
+// Utilitário para timeout em fetch (não usado)
 function fetchWithTimeout(url, options = {}, timeout = 5000) {
   return Promise.race([
     fetch(url, options),
