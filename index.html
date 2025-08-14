@@ -8,6 +8,17 @@
   <style>
     /* Só para a logo grande da seção */
     .company-logo-img{height:200px;object-fit:contain;display:block;margin:0 auto}
+
+    /* ===== Modal de Login (visual minimal, segue paleta do site) ===== */
+    #loginModal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6);z-index:9999}
+    .login-card{width:360px;max-width:92vw;background:#0f172a;border:1px solid #1f2a44;border-radius:16px;padding:24px;color:#e2e8f0;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+    .login-card h3{margin:0 0 12px;font-weight:600}
+    .login-card p.desc{margin:0 0 16px;color:#94a3b8;font-size:13px}
+    .login-card input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #23314f;background:#0b1220;color:#e2e8f0;margin:6px 0 12px}
+    .login-card button{width:100%;padding:10px 12px;border:0;border-radius:10px;background:#06b6d4;color:#001018;font-weight:700;cursor:pointer}
+    .login-card .msg{min-height:18px;font-size:12px;color:#93c5fd;margin-top:6px}
+    .login-logo{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+    .login-logo img{height:28px}
   </style>
 </head>
 <body>
@@ -48,7 +59,6 @@
                   name="nicho"
                   class="form-input"
                   placeholder="Ex: médico, dentista, advogado"
-                 
                   required
                 />
               </div>
@@ -64,7 +74,6 @@
                   name="local"
                   class="form-input"
                   placeholder="Ex: Belo Horizonte, São Paulo"
-                
                   required
                 />
               </div>
@@ -152,6 +161,34 @@
     </div>
   </main>
 
+  <!-- ===== Modal de Login ===== -->
+  <div id="loginModal">
+    <form class="login-card" onsubmit="handleLoginSubmit(event)">
+      <div class="login-logo">
+        <img src="smartleadslogo.png" alt="SmartLeads" />
+        <strong>SmartLeads</strong>
+      </div>
+      <h3>Entrar</h3>
+      <p class="desc">Use o e-mail e a senha fornecidos pela equipe.</p>
+      <input id="lg_email" type="email" placeholder="E-mail" required />
+      <input id="lg_senha" type="password" placeholder="Senha" required />
+      <button type="submit">Acessar</button>
+      <div id="lg_msg" class="msg"></div>
+    </form>
+  </div>
+
+  <!-- BACKEND: mantém se já existir; senão define o padrão -->
+  <script>window.BACKEND = window.BACKEND || "https://clickleads.up.railway.app";</script>
+  <!-- Auth helpers (precisa existir como arquivo auth.js) -->
+  <script src="auth.js"></script>
+  <!-- Seu JS existente -->
   <script src="script.js"></script>
+
+  <!-- Abre o login ao carregar -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      if (typeof showLogin === "function") showLogin();
+    });
+  </script>
 </body>
 </html>
