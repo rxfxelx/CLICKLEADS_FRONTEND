@@ -8,12 +8,13 @@ let alvo = 0;
 let waCount = 0;
 let nonWaCount = 0;
 let searched = 0;
+let doneSeen = false;          // <-- só libera CSV quando true ou meta atingida
 const vistos = new Set();
 const coletados = [];
 
-// watchdog: cai pro fallback se o SSE ficar mudo
+// watchdog para SSE silencioso
 let idleTimer = null;
-const IDLE_MS = 25000; // 25s
+const IDLE_MS = 25000;
 
 // ===== DOM =====
 const form = document.getElementById("leadsForm");
@@ -33,7 +34,6 @@ function onlyOneCity(t){ return (t||"").split(",")[0].trim(); }
 function bumpIdle(){
   if(idleTimer) clearTimeout(idleTimer);
   idleTimer = setTimeout(() => {
-    // SSE ficou silencioso: fecha e usa JSON
     if(es){ try{ es.close(); }catch{} es = null; }
     if(window.__lastParams){
       const { nicho, local, n, somenteWA } = window.__lastParams;
@@ -53,8 +53,10 @@ function setBusy(b){
     btnCancelar.style.display = "none";
   }
 }
+
 function resetUI(){
   waCount = 0; nonWaCount = 0; searched = 0;
+  doneSeen = false;
   vistos.clear(); coletados.length = 0;
   resultsBody.innerHTML = "";
   progressBar.style.width = "0%";
@@ -65,6 +67,7 @@ function resetUI(){
   progressSec.style.display = "block";
   resultsSec.style.display = "block";
 }
+
 function renderRow(phone){
   if(vistos.has(phone)) return;
   vistos.add(phone);
@@ -75,6 +78,12 @@ function renderRow(phone){
   tr.appendChild(td);
   resultsBody.appendChild(tr);
 }
+
+function maybeShowCSV(){
+  const can = coletados.length > 0 && (doneSeen || waCount >= alvo);
+  btnDownload.style.display = can ? "inline-block" : "none";
+}
+
 function updateProgress(city=""){
   const pct = Math.max(0, Math.min(100, Math.floor((waCount/alvo)*100)));
   progressBar.style.width = pct + "%";
@@ -82,7 +91,7 @@ function updateProgress(city=""){
   progressText.textContent =
     `Coletados ${waCount} de ${alvo} (WA: ${waCount} | Não WA: ${nonWaCount})` +
     (city ? ` — Cidade: ${city}` : "");
-  if(coletados.length > 0) btnDownload.style.display = "inline-block";
+  maybeShowCSV();
 }
 
 // ===== CSV =====
@@ -108,6 +117,7 @@ async function fallbackFetch(nicho, local, n, somenteWA){
   const data = await r.json();
   (data.items || data.leads || []).forEach(row => renderRow(row.phone));
   waCount = coletados.length;
+  doneSeen = true;               // terminou via fallback
   updateProgress(local);
   setBusy(false);
 }
@@ -138,6 +148,8 @@ function startStream(nicho, local, n, somenteWA){
         updateProgress(local);
         bumpIdle();
         if(waCount >= alvo && es){
+          doneSeen = true;
+          updateProgress(local);
           es.close(); es = null; setBusy(false);
         }
       }
@@ -157,6 +169,7 @@ function startStream(nicho, local, n, somenteWA){
       if(typeof d.wa_count === "number") waCount = d.wa_count;
       if(typeof d.non_wa_count === "number") nonWaCount = d.non_wa_count;
       if(d.exhausted) exhaustedWarning.style.display = "flex";
+      doneSeen = true;            // <-- marca término
       updateProgress(local);
       if(es){ es.close(); es = null; }
       if(idleTimer) clearTimeout(idleTimer);
@@ -179,8 +192,8 @@ form.addEventListener("submit", (ev) => {
   ev.preventDefault();
   const nicho = document.getElementById("nicho").value.trim();
   const localRaw = document.getElementById("local").value.trim();
-  const local = onlyOneCity(localRaw);               // força 1 cidade
-  document.getElementById("local").value = local;    // reflete no input
+  const local = onlyOneCity(localRaw);
+  document.getElementById("local").value = local;
   const n = Math.max(1, Math.min(500, parseInt(document.getElementById("quantidade").value || "1", 10)));
   const somenteWA = document.getElementById("somenteWhatsapp").checked;
 
