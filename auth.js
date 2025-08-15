@@ -1,108 +1,80 @@
-<script>
-/* ===== Auth minimal (1 sessão ativa por conta) ===== */
-const AUTH = { access: null, sid: null, hbTimer: null };
+// === Config ===
+const API = (typeof window !== "undefined" && (window.BACKEND || (typeof BACKEND !== "undefined" ? BACKEND : null)))
+  || "https://clickleads.up.railway.app";
 
+const TOKEN_KEY  = "auth_token";
+const DEVICE_KEY = "device_id";
+
+// === Helpers ===
+function getToken(){ try{ return localStorage.getItem(TOKEN_KEY) || ""; }catch{ return ""; } }
+function setToken(t){ try{ localStorage.setItem(TOKEN_KEY, t); }catch{} }
+function clearToken(){ try{ localStorage.removeItem(TOKEN_KEY); }catch{} }
 function getDeviceId(){
-  const K = "smartleads_device_id";
-  let v = localStorage.getItem(K);
-  if(!v){
-    v = crypto.getRandomValues(new Uint8Array(16)).join("-");
-    localStorage.setItem(K, v);
-  }
-  return v;
+  try{
+    let id = localStorage.getItem(DEVICE_KEY);
+    if(!id){ id = "WEB-" + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem(DEVICE_KEY, id); }
+    return id;
+  }catch{ return "WEB-UNKNOWN"; }
 }
 
-async function authLogin(email, password){
-  const r = await fetch(`${BACKEND}/auth/login`, {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({ email, password, device_id: getDeviceId() })
-  });
-  if (r.status === 423) throw new Error("Já existe um dispositivo conectado.");
-  if (!r.ok) throw new Error("Login inválido.");
-  const data = await r.json();
-  AUTH.access = data.access_token;
-  AUTH.sid = data.session_id;
-  startHeartbeat();
-}
-
-function startHeartbeat(){
-  stopHeartbeat();
-  AUTH.hbTimer = setInterval(async ()=>{
-    try{
-      await fetch(`${BACKEND}/auth/heartbeat?session_id=${encodeURIComponent(AUTH.sid)}&device_id=${encodeURIComponent(getDeviceId())}`, {
-        method:"POST",
-        headers:{ "Authorization": `Bearer ${AUTH.access}` }
-      });
-    }catch(_){}
-  }, 30000);
-}
-function stopHeartbeat(){
-  if(AUTH.hbTimer){ clearInterval(AUTH.hbTimer); AUTH.hbTimer=null; }
-}
-
-async function tryRefresh(){
-  const rr = await fetch(`${BACKEND}/auth/refresh?device_id=${encodeURIComponent(getDeviceId())}`, {
-    method:"POST",
-    credentials:"include"
-  });
-  if(rr.ok){
-    const d = await rr.json();
-    AUTH.access = d.access_token;
-    AUTH.sid = d.session_id;
-    startHeartbeat();
-    return true;
-  }
-  return false;
-}
-
-async function apiFetch(url, opts={}){
-  opts.headers = Object.assign({}, opts.headers, {
-    "Authorization": `Bearer ${AUTH.access}`,
-    "X-Device-ID": getDeviceId()
-  });
-  let resp = await fetch(url, opts);
-  if(resp.status === 401){
-    const ok = await tryRefresh();
-    if (ok) {
-      opts.headers.Authorization = `Bearer ${AUTH.access}`;
-      resp = await fetch(url, opts);
-    }
-  } else if (resp.status === 423) {
-    alert("Já existe um dispositivo conectado usando esta conta.");
-  }
-  return resp;
-}
-
-/* ===== Login UI (modal) ===== */
+// === UI (modal) ===
 function showLogin(){
-  const el = document.getElementById("loginModal");
-  if (el) el.style.display="flex";
+  const modal = document.getElementById("loginModal");
+  if(modal) modal.style.display = "flex";
+  const buscarBtn = document.getElementById("buscarBtn");
+  if(buscarBtn) buscarBtn.disabled = true;
 }
 function hideLogin(){
-  const el = document.getElementById("loginModal");
-  if (el) el.style.display="none";
+  const modal = document.getElementById("loginModal");
+  if(modal) modal.style.display = "none";
+  const buscarBtn = document.getElementById("buscarBtn");
+  if(buscarBtn) buscarBtn.disabled = false;
 }
-async function handleLoginSubmit(e){
-  e.preventDefault();
-  const email = document.getElementById("lg_email").value.trim();
-  const senha = document.getElementById("lg_senha").value;
-  const msg = document.getElementById("lg_msg");
-  msg.textContent="Entrando...";
+
+// === Sessão ===
+async function validateSession(){
+  const tok = getToken();
+  if(!tok){ showLogin(); return; }
   try{
-    await authLogin(email, senha);
-    msg.textContent="";
+    const r = await fetch(`${API}/auth/me`, { headers:{ Authorization:`Bearer ${tok}` }});
+    if(!r.ok) throw 0;
     hideLogin();
-  }catch(err){
-    msg.textContent = err.message || "Erro de login";
+  }catch{
+    clearToken();
+    showLogin();
   }
 }
 
-/* Expor no escopo global */
-window.AUTH = AUTH;
-window.apiFetch = apiFetch;
-window.getDeviceId = getDeviceId;
-window.showLogin = showLogin;
-window.handleLoginSubmit = handleLoginSubmit;
-window.tryRefresh = tryRefresh;
-</script>
+// === Submit do login (usado no onsubmit do seu form) ===
+async function handleLoginSubmit(e){
+  e.preventDefault();
+  const msgEl   = document.getElementById("lg_msg");
+  const emailEl = document.getElementById("lg_email");
+  const passEl  = document.getElementById("lg_senha");
+
+  const email = (emailEl?.value || "").trim();
+  const password = passEl?.value || "";
+  if(!email || !password){ if(msgEl) msgEl.textContent = "Preencha e-mail e senha."; return; }
+
+  if(msgEl) msgEl.textContent = "Entrando...";
+
+  try{
+    const res = await fetch(`${API}/auth/login`,{
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ email, password, device_id: getDeviceId() })
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data?.detail || `Erro ${res.status}`);
+    if(!data?.access_token) throw new Error("Resposta inválida do servidor.");
+
+    setToken(data.access_token);
+    if(msgEl) msgEl.textContent = "OK";
+    hideLogin();
+  }catch(err){
+    if(msgEl) msgEl.textContent = String(err?.message || err || "Falha no login");
+  }
+}
+
+// === Boot ===
+document.addEventListener("DOMContentLoaded", validateSession);
