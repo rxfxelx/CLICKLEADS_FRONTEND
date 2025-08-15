@@ -3,7 +3,7 @@ const TOKEN_KEY   = "auth_token";
 const DEVICE_KEY  = "device_id";
 const SESSION_KEY = "session_id";
 
-// Base do backend
+// Base do backend (pega do window)
 function API_BASE(){
   return (typeof window !== "undefined" && window.BACKEND)
     ? window.BACKEND
@@ -30,16 +30,14 @@ function getDeviceId(){
 }
 function setDeviceId(v){ try{ if(v) localStorage.setItem(DEVICE_KEY, v); }catch{} }
 
-// === UI modal ===
+// UI modal
 function showLogin(){ const m = document.getElementById("loginModal"); if(m) m.style.display = "flex"; }
 function hideLogin(){ const m = document.getElementById("loginModal"); if(m) m.style.display = "none"; }
 
-// === Sessão: simples (não chama /auth/me) ===
-function validateSession(){
-  if(getToken()) hideLogin(); else showLogin();
-}
+// Sessão simples
+function validateSession(){ if(getToken()) hideLogin(); else showLogin(); }
 
-// === Login ===
+// Login
 async function handleLoginSubmit(e){
   e.preventDefault();
   const msgEl   = document.getElementById("lg_msg");
@@ -60,7 +58,6 @@ async function handleLoginSubmit(e){
     const data = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data?.detail || `Erro ${res.status}`);
 
-    // Campos tolerantes a variações do backend
     const token = data.access_token || data.token || data.access;
     const sid   = data.sid || data.session_id || data.session || data.id;
     const dev   = data.device || null;
@@ -77,16 +74,23 @@ async function handleLoginSubmit(e){
   }
 }
 
-// === Logout ===
+// Logout
 function doLogout(){ clearToken(); setSessionId(""); showLogin(); }
 
-// === QS para SSE (backend espera access+sid+device) ===
+// QS para SSE — envia todos os nomes aceitáveis
 function buildSSEAuthQS(){
   const access = getToken();
   const sid = getSessionId();
   const dev = getDeviceId();
-  if(!access || !sid || !dev) return "";
-  return `access=${encodeURIComponent(access)}&sid=${encodeURIComponent(sid)}&device=${encodeURIComponent(dev)}`;
+  if(!access) return "";
+
+  const pairs = [
+    ["access", access], ["token", access], ["auth", access], ["authorization", access],
+    ["sid", sid], ["session", sid], ["session_id", sid],
+    ["device", dev], ["device_id", dev]
+  ].filter(([_,v]) => v && String(v).length > 0);
+
+  return pairs.map(([k,v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join("&");
 }
 
 document.addEventListener("DOMContentLoaded", validateSession);
