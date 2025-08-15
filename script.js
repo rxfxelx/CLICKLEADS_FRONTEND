@@ -1,187 +1,178 @@
-const BACKEND = window.BACKEND || "https://clickleads.up.railway.app";
+// ===== Config =====
+const BACKEND = API_BASE(); // vem do auth.js
 
-function _getToken(){ try{ return localStorage.getItem("auth_token") || ""; }catch{ return ""; } }
-
-let currentEventSource = null;
-let collectedLeads = [];
-let targetCount = 0;
+// ===== Estado da busca =====
+let es = null;
+let abortado = false;
+let alvo = 0;
 let waCount = 0;
 let nonWaCount = 0;
-let lastSomenteWhatsapp = false;
+let searched = 0;
+const vistos = new Set();       // dedup
+const coletados = [];           // ordem de chegada
 
-const leadsForm = document.getElementById("leadsForm");
-const cancelarBtn = document.getElementById("cancelarBtn");
-const downloadBtn = document.getElementById("downloadBtn");
-const resultsBody = document.getElementById("resultsBody");
-const waCountEl = document.getElementById("waCount");
-const nonWaCountEl = document.getElementById("nonWaCount");
-const searchedCountEl = document.getElementById("searchedCount");
-const progressFill = document.getElementById("progressFill");
+// ===== DOM =====
+const form = document.getElementById("leadsForm");
+const btnBuscar = document.getElementById("buscarBtn");
+const btnCancelar = document.getElementById("cancelarBtn");
+const btnDownload = document.getElementById("downloadBtn");
+const progressSec = document.getElementById("progressSection");
+const resultsSec = document.getElementById("resultsSection");
 const progressText = document.getElementById("progressText");
+const progressBar = document.getElementById("progressBar");
 const exhaustedWarning = document.getElementById("exhaustedWarning");
+const resultsBody = document.getElementById("resultsBody");
 
-document.addEventListener("DOMContentLoaded", () => {
-  if (leadsForm) leadsForm.addEventListener("submit", handleFormSubmit);
-  if (cancelarBtn) cancelarBtn.addEventListener("click", cancelSearch);
-  if (downloadBtn) downloadBtn.addEventListener("click", downloadCSV);
-});
-
-async function handleFormSubmit(event) {
-  event.preventDefault();
-  if (!_getToken()) { alert("Faça login antes de buscar."); return; }
-
-  const fd = new FormData(leadsForm);
-  const nicho = (fd.get("nicho") || "").toString().trim();
-  const local = (fd.get("local") || "").toString().trim();
-  const quantidade = Number.parseInt(fd.get("quantidade"));
-  const somenteWhatsapp = fd.get("somenteWhatsapp") === "on";
-  lastSomenteWhatsapp = somenteWhatsapp;
-
-  if (!nicho || !local || Number.isNaN(quantidade) || quantidade < 1 || quantidade > 500) {
-    alert("Preencha os campos corretamente.");
-    return;
+// ===== Util =====
+function setBusy(b){
+  if(b){
+    btnBuscar.disabled = true;
+    btnBuscar.querySelector(".btn-text").textContent = "Buscando...";
+    btnCancelar.style.display = "inline-block";
+  }else{
+    btnBuscar.disabled = false;
+    btnBuscar.querySelector(".btn-text").textContent = "Buscar Leads";
+    btnCancelar.style.display = "none";
   }
-
-  collectedLeads = [];
-  targetCount = quantidade;
-  waCount = 0; nonWaCount = 0;
+}
+function resetUI(){
+  waCount = 0; nonWaCount = 0; searched = 0;
+  vistos.clear(); coletados.length = 0;
   resultsBody.innerHTML = "";
+  progressBar.style.width = "0%";
+  progressBar.setAttribute("aria-valuenow","0");
+  progressText.textContent = "Coletados 0 de 0 (WA: 0 | Não WA: 0)";
   exhaustedWarning.style.display = "none";
-  updateProgress(0, targetCount, 0, 0);
-  updateProgressText("Iniciando...");
-  setLoadingState(true);
-
-  const ok = await tryServerSentEvents(nicho, local, quantidade, somenteWhatsapp);
-  if (!ok) {
-    try {
-      await fallbackFetch(nicho, local, quantidade, somenteWhatsapp);
-      updateProgressText("Concluído");
-    } catch {
-      alert("Erro ao buscar leads.");
-    } finally {
-      setLoadingState(false);
-    }
-  }
+  btnDownload.style.display = "none";
+  progressSec.style.display = "block";
+  resultsSec.style.display = "block";
 }
-
-function setLoadingState(loading) {
-  const btn = document.getElementById("buscarBtn");
-  if (btn) {
-    btn.disabled = loading;
-    btn.querySelector(".btn-text").textContent = loading ? "Buscando..." : "Buscar Leads";
-    btn.querySelector(".btn-spinner").style.display = loading ? "inline-block" : "none";
-  }
-  cancelarBtn.style.display = loading ? "inline-block" : "none";
-}
-
-function tryServerSentEvents(nicho, local, quantidade, somenteWhatsapp) {
-  return new Promise((resolve) => {
-    try {
-      const verify = somenteWhatsapp ? 1 : 0;
-
-      const authQS = (typeof buildSSEAuthQS === "function") ? buildSSEAuthQS() : "";
-      const url = `${BACKEND}/leads/stream?nicho=${encodeURIComponent(nicho)}&local=${encodeURIComponent(local)}&n=${quantidade}&verify=${verify}${authQS ? `&${authQS}` : ""}`;
-
-      currentEventSource = new EventSource(url);
-
-      let started = false;
-      const timeout = setTimeout(() => {
-        if (!started) { try { currentEventSource.close(); } catch {}; currentEventSource = null; resolve(false); }
-      }, 5000);
-
-      currentEventSource.addEventListener("start", () => { started = true; clearTimeout(timeout); });
-
-      currentEventSource.addEventListener("progress", (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          waCount = data.wa_count || 0;
-          nonWaCount = data.non_wa_count || 0;
-          const cur = lastSomenteWhatsapp ? waCount : (data.searched || 0);
-          updateProgress(cur, targetCount, waCount, nonWaCount);
-          if (searchedCountEl) searchedCountEl.textContent = String(data.searched || 0);
-        } catch {}
-      });
-
-      currentEventSource.addEventListener("item", (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data && data.phone) { addLeadToTable(data.phone); updateProgress(collectedLeads.length, targetCount, waCount, nonWaCount); }
-        } catch {}
-      });
-
-      currentEventSource.addEventListener("done", (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          waCount = data.wa_count || waCount;
-          nonWaCount = data.non_wa_count || nonWaCount;
-          updateProgress(lastSomenteWhatsapp ? waCount : collectedLeads.length, targetCount, waCount, nonWaCount);
-          if (searchedCountEl) searchedCountEl.textContent = String(data.searched || 0);
-          if (data.exhausted) showExhaustedWarning();
-        } catch {}
-        try { currentEventSource.close(); } catch {}
-        currentEventSource = null;
-        setLoadingState(false);
-        resolve(true);
-      });
-
-      currentEventSource.onerror = () => { try { currentEventSource.close(); } catch {}; currentEventSource = null; resolve(false); };
-    } catch { resolve(false); }
-  });
-}
-
-async function fallbackFetch(nicho, local, quantidade, somenteWhatsapp) {
-  const verify = somenteWhatsapp ? 1 : 0;
-  const url = `${BACKEND}/leads?nicho=${encodeURIComponent(nicho)}&local=${encodeURIComponent(local)}&n=${quantidade}&verify=${verify}`;
-  const tok = _getToken();
-  const headers = tok ? { "Authorization": `Bearer ${tok}` } : {};
-  const r = await fetch(url, { headers });
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  const data = await r.json();
-
-  waCount = data.wa_count || 0;
-  nonWaCount = data.non_wa_count || 0;
-  const list = (data.leads || []).map(x => x.phone);
-  for (const p of list) addLeadToTable(p);
-
-  updateProgress(lastSomenteWhatsapp ? waCount : collectedLeads.length, targetCount, waCount, nonWaCount);
-  if (searchedCountEl) searchedCountEl.textContent = String(data.searched || list.length || 0);
-  if (data.exhausted) showExhaustedWarning();
-}
-
-function updateProgress(current, total, wa, nonWa) {
-  const pct = Math.max(0, Math.min(100, total ? (current / total) * 100 : 0));
-  if (progressFill) progressFill.style.width = `${pct.toFixed(1)}%`;
-  if (waCountEl) waCountEl.textContent = String(wa);
-  if (nonWaCountEl) nonWaCountEl.textContent = String(nonWa);
-  updateProgressText(`${Math.round(pct)}%`);
-}
-function updateProgressText(t){ if (progressText) progressText.textContent = t; }
-function showExhaustedWarning(){ if (exhaustedWarning) exhaustedWarning.style.display = "block"; }
-
-function addLeadToTable(phone){
-  if (!resultsBody) return;
+function renderRow(phone){
+  if(vistos.has(phone)) return;
+  vistos.add(phone);
+  coletados.push(phone);
   const tr = document.createElement("tr");
   const td = document.createElement("td");
   td.textContent = phone;
   tr.appendChild(td);
   resultsBody.appendChild(tr);
-  collectedLeads.push({ phone });
 }
-
-function cancelSearch(){
-  if (currentEventSource){ try { currentEventSource.close(); } catch {} currentEventSource = null; }
-  setLoadingState(false);
-  updateProgressText("Cancelado");
+function updateProgress(city=""){
+  const pct = Math.max(0, Math.min(100, Math.floor((waCount/alvo)*100)));
+  progressBar.style.width = pct + "%";
+  progressBar.setAttribute("aria-valuenow", String(pct));
+  progressText.textContent =
+    `Coletados ${waCount} de ${alvo} (WA: ${waCount} | Não WA: ${nonWaCount})` +
+    (city ? ` — Cidade: ${city}` : "");
+  if(coletados.length > 0){
+    btnDownload.style.display = "inline-block";
+  }
 }
-
-function downloadCSV(){
-  if (collectedLeads.length === 0){ alert("Nenhum lead para baixar."); return; }
-  let csv = "\ufeffphone\n";
-  for (const l of collectedLeads) csv += `${l.phone}\n`;
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
+function csvDownload(){
+  const header = "phone\n";
+  const body = coletados.map(p => String(p).trim()).join("\n");
+  const blob = new Blob([header + body], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
-  a.href = url; a.download = `smart-leads-${new Date().toISOString().split("T")[0]}.csv`;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  a.href = URL.createObjectURL(blob);
+  a.download = "leads.csv";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
+
+// ===== Fallback JSON =====
+async function fallbackFetch(nicho, local, n, somenteWA){
+  const verify = somenteWA ? 1 : 0;
+  const qAuth = buildSSEAuthQS();
+  const url = `${BACKEND}/leads?nicho=${encodeURIComponent(nicho)}&local=${encodeURIComponent(local)}&n=${n}&verify=${verify}` + (qAuth ? `&${qAuth}` : "");
+  const r = await fetch(url);
+  if(!r.ok) throw new Error(`HTTP ${r.status}`);
+  const data = await r.json();
+  (data.items || data.leads || []).forEach(row => renderRow(row.phone));
+  waCount = coletados.length;
+  updateProgress();
+  setBusy(false);
+}
+
+// ===== SSE =====
+function startStream(nicho, local, n, somenteWA){
+  const verify = somenteWA ? 1 : 0;
+  const qAuth = buildSSEAuthQS();
+  const url = `${BACKEND}/leads/stream?nicho=${encodeURIComponent(nicho)}&local=${encodeURIComponent(local)}&n=${n}&verify=${verify}` + (qAuth ? `&${qAuth}` : "");
+
+  try{
+    es = new EventSource(url, { withCredentials: false });
+
+    es.addEventListener("start", () => { /* noop */ });
+
+    es.addEventListener("city", (e) => {
+      const d = JSON.parse(e.data||"{}");
+      updateProgress(d.name || "");
+    });
+
+    es.addEventListener("item", (e) => {
+      const d = JSON.parse(e.data||"{}");
+      if(d.phone){
+        renderRow(d.phone);
+        if(d.has_whatsapp) waCount++;
+        updateProgress();
+        if(waCount >= alvo && es){
+          es.close(); es = null; setBusy(false);
+        }
+      }
+    });
+
+    es.addEventListener("progress", (e) => {
+      const d = JSON.parse(e.data||"{}");
+      if(typeof d.wa_count === "number") waCount = d.wa_count;
+      if(typeof d.non_wa_count === "number") nonWaCount = d.non_wa_count;
+      if(typeof d.searched === "number") searched = d.searched;
+      updateProgress(d.city || "");
+    });
+
+    es.addEventListener("done", (e) => {
+      const d = JSON.parse(e.data||"{}");
+      if(typeof d.wa_count === "number") waCount = d.wa_count;
+      if(typeof d.non_wa_count === "number") nonWaCount = d.non_wa_count;
+      if(d.exhausted) exhaustedWarning.style.display = "flex";
+      updateProgress();
+      if(es){ es.close(); es = null; }
+      setBusy(false);
+    });
+
+    es.onerror = () => {
+      if(abortado){ abortado = false; return; }
+      if(es){ es.close(); es = null; }
+      // fallback para JSON
+      fallbackFetch(nicho, local, n, somenteWA).catch(()=>setBusy(false));
+    };
+  }catch{
+    fallbackFetch(nicho, local, n, somenteWA).catch(()=>setBusy(false));
+  }
+}
+
+// ===== Listeners =====
+form.addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const nicho = document.getElementById("nicho").value.trim();
+  const local = document.getElementById("local").value.trim();
+  const n = Math.max(1, Math.min(500, parseInt(document.getElementById("quantidade").value || "1", 10)));
+  const somenteWA = document.getElementById("somenteWhatsapp").checked;
+
+  alvo = n;
+  resetUI();
+  setBusy(true);
+  startStream(nicho, local, n, somenteWA);
+});
+
+btnCancelar.addEventListener("click", () => {
+  abortado = true;
+  if(es){ es.close(); es = null; }
+  setBusy(false);
+});
+
+btnDownload.addEventListener("click", csvDownload);
+
+// Inicializa estado visual
+resetUI();
+setBusy(false);
