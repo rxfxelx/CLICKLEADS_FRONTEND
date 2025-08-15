@@ -45,7 +45,7 @@ async function validateSession(){
   }
 }
 
-// === Submit do login (usado no onsubmit do seu form) ===
+// === Submit do login (vinculado no onsubmit do seu form) ===
 async function handleLoginSubmit(e){
   e.preventDefault();
   const msgEl   = document.getElementById("lg_msg");
@@ -68,7 +68,7 @@ async function handleLoginSubmit(e){
     if(!res.ok) throw new Error(data?.detail || `Erro ${res.status}`);
     if(!data?.access_token) throw new Error("Resposta inválida do servidor.");
 
-    setToken(data.access_token);
+    setToken(data.access_token);  // <- chave auth_token garantida
     if(msgEl) msgEl.textContent = "OK";
     hideLogin();
   }catch(err){
@@ -76,5 +76,5 @@ async function handleLoginSubmit(e){
   }
 }
 
-// === Boot ===
+// Boot
 document.addEventListener("DOMContentLoaded", validateSession);
