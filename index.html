@@ -6,10 +6,7 @@
   <title>Smart Leads</title>
   <link rel="stylesheet" href="styles.css" />
   <style>
-    /* Só para a logo grande da seção */
     .company-logo-img{height:200px;object-fit:contain;display:block;margin:0 auto}
-
-    /* ===== Modal de Login (visual minimal, segue paleta do site) ===== */
     #loginModal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6);z-index:9999}
     .login-card{width:360px;max-width:92vw;background:#0f172a;border:1px solid #1f2a44;border-radius:16px;padding:24px;color:#e2e8f0;box-shadow:0 10px 30px rgba(0,0,0,.4)}
     .login-card h3{margin:0 0 12px;font-weight:600}
@@ -23,21 +20,17 @@
 </head>
 <body>
   <header class="header">
-    <div class="container">
-      <h1 class="logo">Helsen IA</h1>
-    </div>
+    <div class="container"><h1 class="logo">Helsen IA</h1></div>
   </header>
 
   <main class="main">
     <div class="container">
-      <!-- Logo grande na página -->
       <div class="logo-section">
         <div class="company-logo-container">
           <img src="smartleadslogo.png" alt="Smart Leads" class="company-logo-img" />
         </div>
       </div>
 
-      <!-- Formulário -->
       <div class="form-section">
         <div class="card form-card">
           <div class="form-header">
@@ -48,62 +41,23 @@
           <form id="leadsForm" class="form">
             <div class="form-container">
               <div class="form-group">
-                <label for="nicho" class="form-label">
-                  <span class="label-text">Nicho</span>
-                  <span class="label-required">*</span>
-                </label>
-                <input
-                  type="text"
-                  id="nicho"
-                  name="nicho"
-                  class="form-input"
-                  placeholder="Ex: médico, dentista, advogado"
-                  required
-                />
+                <label for="nicho" class="form-label"><span class="label-text">Nicho</span><span class="label-required">*</span></label>
+                <input type="text" id="nicho" name="nicho" class="form-input" placeholder="Ex: médico, dentista, advogado" required />
               </div>
 
               <div class="form-group">
-                <label for="local" class="form-label">
-                  <span class="label-text">Local</span>
-                  <span class="label-required">*</span>
-                </label>
-                <input
-                  type="text"
-                  id="local"
-                  name="local"
-                  class="form-input"
-                  placeholder="Ex: Belo Horizonte, São Paulo"
-                  required
-                />
+                <label for="local" class="form-label"><span class="label-text">Local</span><span class="label-required">*</span></label>
+                <input type="text" id="local" name="local" class="form-input" placeholder="Ex: Belo Horizonte, São Paulo" required />
               </div>
 
               <div class="form-group">
-                <label for="quantidade" class="form-label">
-                  <span class="label-text">Quantidade</span>
-                  <span class="label-required">*</span>
-                </label>
-                <input
-                  type="number"
-                  id="quantidade"
-                  name="quantidade"
-                  class="form-input"
-                  min="1"
-                  max="500"
-                  value="50"
-                  placeholder="Máximo 500 leads"
-                  required
-                />
+                <label for="quantidade" class="form-label"><span class="label-text">Quantidade</span><span class="label-required">*</span></label>
+                <input type="number" id="quantidade" name="quantidade" class="form-input" min="1" max="500" value="50" placeholder="Máximo 500 leads" required />
               </div>
 
               <div class="form-group">
                 <div class="checkbox-group">
-                  <input
-                    type="checkbox"
-                    id="somenteWhatsapp"
-                    name="somenteWhatsapp"
-                    class="form-checkbox"
-                    checked
-                  />
+                  <input type="checkbox" id="somenteWhatsapp" name="somenteWhatsapp" class="form-checkbox" checked />
                   <label for="somenteWhatsapp" class="checkbox-label">
                     <span class="checkbox-text">Somente WhatsApp</span>
                     <span class="checkbox-description">Filtrar apenas números com WhatsApp</span>
@@ -116,42 +70,32 @@
                   <span class="btn-text">Buscar Leads</span>
                   <div class="btn-spinner" aria-hidden="true"></div>
                 </button>
-                <button type="button" id="cancelarBtn" class="btn btn-secondary" style="display:none">
-                  Cancelar Busca
-                </button>
+                <button type="button" id="cancelarBtn" class="btn btn-secondary" style="display:none">Cancelar Busca</button>
               </div>
             </div>
           </form>
         </div>
       </div>
 
-      <!-- Progresso -->
       <div id="progressSection" class="progress-section" style="display:none;">
         <div class="card">
           <div class="progress-info">
             <span id="progressText" class="progress-text">Coletados 0 de 0 (WA: 0 | Não WA: 0)</span>
             <button id="downloadBtn" class="btn btn-success" style="display:none">Baixar CSV</button>
           </div>
-          <div class="progress-bar-container">
-            <div id="progressBar" class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
-          </div>
+          <div class="progress-bar-container"><div id="progressBar" class="progress-bar" role="progressbar"></div></div>
           <div id="exhaustedWarning" class="exhausted-warning" style="display:none;">
             <div class="warning-icon">⚠️</div>
-            <div class="warning-text">
-              <strong>Busca Completa:</strong> Buscamos todos os números disponíveis para essa busca.
-            </div>
+            <div class="warning-text"><strong>Busca Completa:</strong> Buscamos todos os números disponíveis para essa busca.</div>
           </div>
         </div>
       </div>
 
-      <!-- Resultados -->
       <div id="resultsSection" class="results-section" style="display:none;">
         <div class="card">
           <div class="table-container">
             <table class="results-table" role="table">
-              <thead>
-                <tr><th scope="col">Telefone</th></tr>
-              </thead>
+              <thead><tr><th scope="col">Telefone</th></tr></thead>
               <tbody id="resultsBody"></tbody>
             </table>
           </div>
@@ -160,13 +104,10 @@
     </div>
   </main>
 
-  <!-- ===== Modal de Login ===== -->
+  <!-- Modal de Login -->
   <div id="loginModal">
     <form class="login-card" onsubmit="handleLoginSubmit(event)">
-      <div class="login-logo">
-        <img src="smartleadslogo.png" alt="SmartLeads" />
-        <strong>SmartLeads</strong>
-      </div>
+      <div class="login-logo"><img src="smartleadslogo.png" alt="SmartLeads" /><strong>SmartLeads</strong></div>
       <h3>Entrar</h3>
       <p class="desc">Use o e-mail e a senha fornecidos pela equipe.</p>
       <input id="lg_email" type="email" placeholder="E-mail" required />
@@ -176,7 +117,7 @@
     </form>
   </div>
 
-  <!-- BACKEND: defina sua URL HTTPS ANTES de carregar os JS -->
+  <!-- URL do backend -->
   <script>window.BACKEND = "https://clickleads.up.railway.app";</script>
   <script src="auth.js"></script>
   <script src="script.js"></script>
