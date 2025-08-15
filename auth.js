@@ -34,14 +34,8 @@ function setDeviceId(v){ try{ if(v) localStorage.setItem(DEVICE_KEY, v); }catch{
 function showLogin(){ const m = document.getElementById("loginModal"); if(m) m.style.display = "flex"; }
 function hideLogin(){ const m = document.getElementById("loginModal"); if(m) m.style.display = "none"; }
 
-// Sessão simples (auto usa token compartilhado se existir)
-function validateSession(){
-  if (typeof window !== "undefined" && window.SHARED_TOKEN && !getToken()){
-    setToken(window.SHARED_TOKEN);
-    setSessionId("shared");
-  }
-  if(getToken()) hideLogin(); else showLogin();
-}
+// Sessão simples
+function validateSession(){ if(getToken()) hideLogin(); else showLogin(); }
 
 // Login
 async function handleLoginSubmit(e){
@@ -49,15 +43,6 @@ async function handleLoginSubmit(e){
   const msgEl   = document.getElementById("lg_msg");
   const emailEl = document.getElementById("lg_email");
   const passEl  = document.getElementById("lg_senha");
-
-  // BYPASS: se tiver token compartilhado, não chama backend
-  if (typeof window !== "undefined" && window.SHARED_TOKEN) {
-    setToken(window.SHARED_TOKEN);
-    setSessionId("shared");
-    if(msgEl) msgEl.textContent = "OK";
-    hideLogin();
-    return;
-  }
 
   const email = (emailEl?.value || "").trim();
   const password = passEl?.value || "";
@@ -92,14 +77,11 @@ async function handleLoginSubmit(e){
 // Logout
 function doLogout(){ clearToken(); setSessionId(""); showLogin(); }
 
-// QS para SSE — usa token compartilhado se definido ou envia todos os nomes
+// QS para SSE — aceita várias chaves + compatível com token compartilhado
 function buildSSEAuthQS(){
-  if (typeof window !== "undefined" && window.SHARED_TOKEN) {
-    return `access=${encodeURIComponent(window.SHARED_TOKEN)}&sid=shared&device=shared`;
-  }
   const access = getToken();
-  const sid = getSessionId();
-  const dev = getDeviceId();
+  const sid = getSessionId() || "shared";
+  const dev = getDeviceId() || "shared";
   if(!access) return "";
   const pairs = [
     ["access", access], ["token", access], ["authorization", access],
