@@ -77,19 +77,21 @@ async function handleLoginSubmit(e){
 // Logout
 function doLogout(){ clearToken(); setSessionId(""); showLogin(); }
 
-// QS para SSE — envia todos os nomes aceitáveis
+// QS para SSE — usa token compartilhado se definido ou envia todos os nomes
 function buildSSEAuthQS(){
+  // Se você definiu window.SHARED_TOKEN no index.html, usa ele.
+  if (typeof window !== "undefined" && window.SHARED_TOKEN) {
+    return `access=${encodeURIComponent(window.SHARED_TOKEN)}&sid=shared&device=shared`;
+  }
   const access = getToken();
   const sid = getSessionId();
   const dev = getDeviceId();
   if(!access) return "";
-
   const pairs = [
-    ["access", access], ["token", access], ["auth", access], ["authorization", access],
-    ["sid", sid], ["session", sid], ["session_id", sid],
+    ["access", access], ["token", access], ["authorization", access],
+    ["sid", sid], ["session_id", sid],
     ["device", dev], ["device_id", dev]
   ].filter(([_,v]) => v && String(v).length > 0);
-
   return pairs.map(([k,v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join("&");
 }
 
