@@ -3,10 +3,11 @@ const TOKEN_KEY   = "auth_token";
 const DEVICE_KEY  = "device_id";
 const SESSION_KEY = "session_id";
 
-// Lê sempre o BACKEND atual na hora da chamada
+// Base do backend
 function API_BASE(){
-  return (typeof window !== "undefined" && (window.BACKEND || (typeof BACKEND !== "undefined" ? BACKEND : ""))) ||
-         "https://seu-backend.aqui"; // opcional: troque pela sua URL
+  return (typeof window !== "undefined" && window.BACKEND)
+    ? window.BACKEND
+    : "https://clickleads.up.railway.app";
 }
 
 // === Helpers ===
@@ -33,16 +34,9 @@ function setDeviceId(v){ try{ if(v) localStorage.setItem(DEVICE_KEY, v); }catch{
 function showLogin(){ const m = document.getElementById("loginModal"); if(m) m.style.display = "flex"; }
 function hideLogin(){ const m = document.getElementById("loginModal"); if(m) m.style.display = "none"; }
 
-// === Sessão ===
-async function validateSession(){
-  const tok = getToken();
-  if(!tok){ showLogin(); return; }
-  try{
-    const r = await fetch(`${API_BASE()}/auth/me`, { headers:{ Authorization:`Bearer ${tok}` }});
-    if(!r.ok) throw new Error();
-  }catch{
-    clearToken(); setSessionId(""); showLogin();
-  }
+// === Sessão: simples (não chama /auth/me) ===
+function validateSession(){
+  if(getToken()) hideLogin(); else showLogin();
 }
 
 // === Login ===
@@ -65,11 +59,16 @@ async function handleLoginSubmit(e){
     });
     const data = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data?.detail || `Erro ${res.status}`);
-    if(!data?.access_token) throw new Error("Resposta inválida.");
 
-    setSessionId(data.sid || data.session_id || "");
-    if(data.device){ setDeviceId(data.device); }
-    setToken(data.access_token);
+    // Campos tolerantes a variações do backend
+    const token = data.access_token || data.token || data.access;
+    const sid   = data.sid || data.session_id || data.session || data.id;
+    const dev   = data.device || null;
+
+    if(!token) throw new Error("Sem token.");
+    setToken(token);
+    if(sid) setSessionId(sid);
+    if(dev) setDeviceId(dev);
 
     if(msgEl) msgEl.textContent = "OK";
     hideLogin();
@@ -79,13 +78,9 @@ async function handleLoginSubmit(e){
 }
 
 // === Logout ===
-function doLogout(){
-  clearToken();
-  setSessionId("");
-  try{ localStorage.removeItem(DEVICE_KEY); }catch{}
-  showLogin();
-}
+function doLogout(){ clearToken(); setSessionId(""); showLogin(); }
 
+// === QS para SSE (backend espera access+sid+device) ===
 function buildSSEAuthQS(){
   const access = getToken();
   const sid = getSessionId();
