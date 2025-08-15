@@ -24,6 +24,8 @@ const exhaustedWarning = document.getElementById("exhaustedWarning");
 const resultsBody = document.getElementById("resultsBody");
 
 // ===== Util =====
+function onlyOneCity(text){ return (text || "").split(",")[0].trim(); }
+
 function setBusy(b){
   if(b){
     btnBuscar.disabled = true;
@@ -90,7 +92,7 @@ async function fallbackFetch(nicho, local, n, somenteWA){
   const data = await r.json();
   (data.items || data.leads || []).forEach(row => renderRow(row.phone));
   waCount = coletados.length;
-  updateProgress();
+  updateProgress(local);
   setBusy(false);
 }
 
@@ -107,7 +109,7 @@ function startStream(nicho, local, n, somenteWA){
 
     es.addEventListener("city", (e) => {
       const d = JSON.parse(e.data||"{}");
-      updateProgress(d.name || "");
+      updateProgress(d.name || local);
     });
 
     es.addEventListener("item", (e) => {
@@ -115,7 +117,7 @@ function startStream(nicho, local, n, somenteWA){
       if(d.phone){
         renderRow(d.phone);
         if(d.has_whatsapp) waCount++;
-        updateProgress();
+        updateProgress(local);
         if(waCount >= alvo && es){
           es.close(); es = null; setBusy(false);
         }
@@ -127,7 +129,7 @@ function startStream(nicho, local, n, somenteWA){
       if(typeof d.wa_count === "number") waCount = d.wa_count;
       if(typeof d.non_wa_count === "number") nonWaCount = d.non_wa_count;
       if(typeof d.searched === "number") searched = d.searched;
-      updateProgress(d.city || "");
+      updateProgress(local);
     });
 
     es.addEventListener("done", (e) => {
@@ -135,7 +137,7 @@ function startStream(nicho, local, n, somenteWA){
       if(typeof d.wa_count === "number") waCount = d.wa_count;
       if(typeof d.non_wa_count === "number") nonWaCount = d.non_wa_count;
       if(d.exhausted) exhaustedWarning.style.display = "flex";
-      updateProgress();
+      updateProgress(local);
       if(es){ es.close(); es = null; }
       setBusy(false);
     });
@@ -155,7 +157,9 @@ function startStream(nicho, local, n, somenteWA){
 form.addEventListener("submit", (ev) => {
   ev.preventDefault();
   const nicho = document.getElementById("nicho").value.trim();
-  const local = document.getElementById("local").value.trim();
+  const localRaw = document.getElementById("local").value.trim();
+  const local = onlyOneCity(localRaw);               // força 1 cidade
+  document.getElementById("local").value = local;    // reflete no input
   const n = Math.max(1, Math.min(500, parseInt(document.getElementById("quantidade").value || "1", 10)));
   const somenteWA = document.getElementById("somenteWhatsapp").checked;
 
