@@ -24,7 +24,6 @@
 <body>
   <header class="header">
     <div class="container">
-      <!-- Mantém o título original no cabeçalho -->
       <h1 class="logo">Helsen IA</h1>
     </div>
   </header>
@@ -177,18 +176,9 @@
     </form>
   </div>
 
-  <!-- BACKEND: mantém se já existir; senão define o padrão -->
-  <script>window.BACKEND = window.BACKEND || "https://clickleads.up.railway.app";</script>
-  <!-- Auth helpers (precisa existir como arquivo auth.js) -->
+  <!-- BACKEND: defina sua URL HTTPS ANTES de carregar os JS -->
+  <script>window.BACKEND = "https://clickleads.up.railway.app";</script>
   <script src="auth.js"></script>
-  <!-- Seu JS existente -->
   <script src="script.js"></script>
-
-  <!-- Abre o login ao carregar -->
-  <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      if (typeof showLogin === "function") showLogin();
-    });
-  </script>
 </body>
 </html>
