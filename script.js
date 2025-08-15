@@ -1,4 +1,4 @@
-const BACKEND = window.BACKEND || "https://clickleads.up.railway.app";
+const BACKEND = window.BACKEND || "https://seu-backend.aqui"; // garanta que aponta para o seu backend
 
 function _getToken(){ try{ return localStorage.getItem("auth_token") || ""; }catch{ return ""; } }
 
@@ -28,8 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function handleFormSubmit(event) {
   event.preventDefault();
-  const token = _getToken();
-  if (!token) { alert("Faça login antes de buscar."); return; }
+  if (!_getToken()) { alert("Faça login antes de buscar."); return; }
 
   const fd = new FormData(leadsForm);
   const nicho = (fd.get("nicho") || "").toString().trim();
@@ -79,13 +78,9 @@ function tryServerSentEvents(nicho, local, quantidade, somenteWhatsapp) {
   return new Promise((resolve) => {
     try {
       const verify = somenteWhatsapp ? 1 : 0;
-      const tok = _getToken();
-
-      // Primeiro tenta formato do backend (access/sid/device). Se faltar algo, cai para ?token=<jwt>
-      const authQSFunc = (typeof buildSSEAuthQS === "function") ? buildSSEAuthQS : () => "";
-      const qsAuth = authQSFunc();
-      const alt = (!qsAuth && tok) ? `token=${encodeURIComponent(tok)}` : "";
-      const url = `${BACKEND}/leads/stream?nicho=${encodeURIComponent(nicho)}&local=${encodeURIComponent(local)}&n=${quantidade}&verify=${verify}${qsAuth ? `&${qsAuth}` : (alt ? `&${alt}` : "")}`;
+      const authQS = (typeof buildSSEAuthQS === "function") ? buildSSEAuthQS() : "";
+      const alt = (!authQS && _getToken()) ? `access=${encodeURIComponent(_getToken())}` : ""; // <-- troca de token->access
+      const url = `${BACKEND}/leads/stream?nicho=${encodeURIComponent(nicho)}&local=${encodeURIComponent(local)}&n=${quantidade}&verify=${verify}${authQS ? `&${authQS}` : (alt ? `&${alt}` : "")}`;
 
       currentEventSource = new EventSource(url);
 
@@ -110,11 +105,7 @@ function tryServerSentEvents(nicho, local, quantidade, somenteWhatsapp) {
       currentEventSource.addEventListener("item", (event) => {
         try {
           const data = JSON.parse(event.data);
-          if (data && data.phone) {
-            addLeadToTable(data.phone);
-            const cur = lastSomenteWhatsapp ? collectedLeads.length : collectedLeads.length;
-            updateProgress(cur, targetCount, waCount, nonWaCount);
-          }
+          if (data && data.phone) { addLeadToTable(data.phone); updateProgress(collectedLeads.length, targetCount, waCount, nonWaCount); }
         } catch {}
       });
 
@@ -133,11 +124,7 @@ function tryServerSentEvents(nicho, local, quantidade, somenteWhatsapp) {
         resolve(true);
       });
 
-      currentEventSource.onerror = () => {
-        try { currentEventSource.close(); } catch {}
-        currentEventSource = null;
-        resolve(false);
-      };
+      currentEventSource.onerror = () => { try { currentEventSource.close(); } catch {}; currentEventSource = null; resolve(false); };
     } catch { resolve(false); }
   });
 }
