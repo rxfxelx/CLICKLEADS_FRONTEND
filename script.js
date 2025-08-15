@@ -1,15 +1,19 @@
 // ===== Config =====
 const BACKEND = API_BASE(); // vem do auth.js
 
-// ===== Estado da busca =====
+// ===== Estado =====
 let es = null;
 let abortado = false;
 let alvo = 0;
 let waCount = 0;
 let nonWaCount = 0;
 let searched = 0;
-const vistos = new Set();       // dedup
-const coletados = [];           // ordem de chegada
+const vistos = new Set();
+const coletados = [];
+
+// watchdog: cai pro fallback se o SSE ficar mudo
+let idleTimer = null;
+const IDLE_MS = 25000; // 25s
 
 // ===== DOM =====
 const form = document.getElementById("leadsForm");
@@ -24,7 +28,19 @@ const exhaustedWarning = document.getElementById("exhaustedWarning");
 const resultsBody = document.getElementById("resultsBody");
 
 // ===== Util =====
-function onlyOneCity(text){ return (text || "").split(",")[0].trim(); }
+function onlyOneCity(t){ return (t||"").split(",")[0].trim(); }
+
+function bumpIdle(){
+  if(idleTimer) clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => {
+    // SSE ficou silencioso: fecha e usa JSON
+    if(es){ try{ es.close(); }catch{} es = null; }
+    if(window.__lastParams){
+      const { nicho, local, n, somenteWA } = window.__lastParams;
+      fallbackFetch(nicho, local, n, somenteWA).catch(()=>setBusy(false));
+    }
+  }, IDLE_MS);
+}
 
 function setBusy(b){
   if(b){
@@ -66,10 +82,10 @@ function updateProgress(city=""){
   progressText.textContent =
     `Coletados ${waCount} de ${alvo} (WA: ${waCount} | Não WA: ${nonWaCount})` +
     (city ? ` — Cidade: ${city}` : "");
-  if(coletados.length > 0){
-    btnDownload.style.display = "inline-block";
-  }
+  if(coletados.length > 0) btnDownload.style.display = "inline-block";
 }
+
+// ===== CSV =====
 function csvDownload(){
   const header = "phone\n";
   const body = coletados.map(p => String(p).trim()).join("\n");
@@ -104,12 +120,14 @@ function startStream(nicho, local, n, somenteWA){
 
   try{
     es = new EventSource(url, { withCredentials: false });
+    bumpIdle();
 
-    es.addEventListener("start", () => { /* noop */ });
+    es.addEventListener("start", () => bumpIdle());
 
     es.addEventListener("city", (e) => {
       const d = JSON.parse(e.data||"{}");
       updateProgress(d.name || local);
+      bumpIdle();
     });
 
     es.addEventListener("item", (e) => {
@@ -118,6 +136,7 @@ function startStream(nicho, local, n, somenteWA){
         renderRow(d.phone);
         if(d.has_whatsapp) waCount++;
         updateProgress(local);
+        bumpIdle();
         if(waCount >= alvo && es){
           es.close(); es = null; setBusy(false);
         }
@@ -130,6 +149,7 @@ function startStream(nicho, local, n, somenteWA){
       if(typeof d.non_wa_count === "number") nonWaCount = d.non_wa_count;
       if(typeof d.searched === "number") searched = d.searched;
       updateProgress(local);
+      bumpIdle();
     });
 
     es.addEventListener("done", (e) => {
@@ -139,13 +159,14 @@ function startStream(nicho, local, n, somenteWA){
       if(d.exhausted) exhaustedWarning.style.display = "flex";
       updateProgress(local);
       if(es){ es.close(); es = null; }
+      if(idleTimer) clearTimeout(idleTimer);
       setBusy(false);
     });
 
     es.onerror = () => {
       if(abortado){ abortado = false; return; }
       if(es){ es.close(); es = null; }
-      // fallback para JSON
+      if(idleTimer) clearTimeout(idleTimer);
       fallbackFetch(nicho, local, n, somenteWA).catch(()=>setBusy(false));
     };
   }catch{
@@ -163,6 +184,8 @@ form.addEventListener("submit", (ev) => {
   const n = Math.max(1, Math.min(500, parseInt(document.getElementById("quantidade").value || "1", 10)));
   const somenteWA = document.getElementById("somenteWhatsapp").checked;
 
+  window.__lastParams = { nicho, local, n, somenteWA };
+
   alvo = n;
   resetUI();
   setBusy(true);
@@ -172,11 +195,12 @@ form.addEventListener("submit", (ev) => {
 btnCancelar.addEventListener("click", () => {
   abortado = true;
   if(es){ es.close(); es = null; }
+  if(idleTimer) clearTimeout(idleTimer);
   setBusy(false);
 });
 
 btnDownload.addEventListener("click", csvDownload);
 
-// Inicializa estado visual
+// Inicializa
 resetUI();
 setBusy(false);
