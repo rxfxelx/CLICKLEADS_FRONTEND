@@ -1,4 +1,3 @@
-// pega do index.html
 const BACKEND = window.BACKEND || "https://clickleads.up.railway.app";
 
 function _getToken(){ try{ return localStorage.getItem("auth_token") || ""; }catch{ return ""; } }
@@ -81,9 +80,7 @@ function tryServerSentEvents(nicho, local, quantidade, somenteWhatsapp) {
       const verify = somenteWhatsapp ? 1 : 0;
 
       const authQS = (typeof buildSSEAuthQS === "function") ? buildSSEAuthQS() : "";
-      // fallback mínimo: se só tiver token, manda como access=
-      const alt    = (!authQS && _getToken()) ? `access=${encodeURIComponent(_getToken())}` : "";
-      const url = `${BACKEND}/leads/stream?nicho=${encodeURIComponent(nicho)}&local=${encodeURIComponent(local)}&n=${quantidade}&verify=${verify}${authQS ? `&${authQS}` : (alt ? `&${alt}` : "")}`;
+      const url = `${BACKEND}/leads/stream?nicho=${encodeURIComponent(nicho)}&local=${encodeURIComponent(local)}&n=${quantidade}&verify=${verify}${authQS ? `&${authQS}` : ""}`;
 
       currentEventSource = new EventSource(url);
 
