@@ -8,7 +8,7 @@ let alvo = 0;
 let waCount = 0;
 let nonWaCount = 0;
 let searched = 0;
-let doneSeen = false;          // <-- só libera CSV quando true ou meta atingida
+let doneSeen = false;
 const vistos = new Set();
 const coletados = [];
 
@@ -107,17 +107,33 @@ function csvDownload(){
   a.remove();
 }
 
-// ===== Fallback JSON =====
+// ===== Fallback JSON com “plano B” =====
 async function fallbackFetch(nicho, local, n, somenteWA){
-  const verify = somenteWA ? 1 : 0;
   const qAuth = buildSSEAuthQS();
-  const url = `${BACKEND}/leads?nicho=${encodeURIComponent(nicho)}&local=${encodeURIComponent(local)}&n=${n}&verify=${verify}` + (qAuth ? `&${qAuth}` : "");
-  const r = await fetch(url);
+  const url = (verify) =>
+    `${BACKEND}/leads?nicho=${encodeURIComponent(nicho)}&local=${encodeURIComponent(local)}&n=${n}&verify=${verify}` +
+    (qAuth ? `&${qAuth}` : "");
+
+  // 1ª tentativa: respeita o checkbox
+  let r = await fetch(url(somenteWA ? 1 : 0));
   if(!r.ok) throw new Error(`HTTP ${r.status}`);
-  const data = await r.json();
-  (data.items || data.leads || []).forEach(row => renderRow(row.phone));
+  let data = await r.json();
+  let rows = (data.items || data.leads || []).map(x => x.phone);
+
+  // Se “Somente WhatsApp” e veio vazio, tenta sem filtro para não ficar travado
+  if(somenteWA && rows.length === 0){
+    try{
+      r = await fetch(url(0));
+      if(r.ok){
+        data = await r.json();
+        rows = (data.items || data.leads || []).map(x => x.phone);
+      }
+    }catch{}
+  }
+
+  rows.forEach(p => renderRow(p));
   waCount = coletados.length;
-  doneSeen = true;               // terminou via fallback
+  doneSeen = true;
   updateProgress(local);
   setBusy(false);
 }
@@ -169,7 +185,7 @@ function startStream(nicho, local, n, somenteWA){
       if(typeof d.wa_count === "number") waCount = d.wa_count;
       if(typeof d.non_wa_count === "number") nonWaCount = d.non_wa_count;
       if(d.exhausted) exhaustedWarning.style.display = "flex";
-      doneSeen = true;            // <-- marca término
+      doneSeen = true;
       updateProgress(local);
       if(es){ es.close(); es = null; }
       if(idleTimer) clearTimeout(idleTimer);
