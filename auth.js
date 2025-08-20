@@ -7,7 +7,7 @@ const SESSION_KEY = "session_id";
 function API_BASE(){
   return (typeof window !== "undefined" && window.BACKEND)
     ? window.BACKEND
-    : "https://clickleads.up.railway.app";
+    : "https://web-production-e49bb.up.railway.app";
 }
 
 // === Helpers ===
@@ -92,3 +92,4 @@ function buildSSEAuthQS(){
 }
 
 document.addEventListener("DOMContentLoaded", validateSession);
+
